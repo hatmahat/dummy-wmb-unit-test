@@ -123,6 +123,10 @@ func (suite *CustomerRepositoryTestSuite) TestCustomerFindById_Success() {
 	assert.NotNil(suite.T(), actual)
 }
 
+// func (suite *CustomerControllerTestSuite) TestRegisterCustomerApi_Failed() {
+
+// }
+
 func TestCustomerRepositoryTestSuite(t *testing.T) {
 	suite.Run(t, new(CustomerRepositoryTestSuite))
 }

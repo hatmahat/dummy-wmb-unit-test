@@ -1,0 +1,89 @@
+package controller
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"enigmacamp.com/golatihanlagi/model"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/suite"
+)
+
+// controller butuh usecase
+type CustomerUseCaseMock struct {
+	mock.Mock
+}
+
+// Buat TestSuite
+type CustomerControllerTestSuite struct {
+	suite.Suite
+	routerMock  *gin.Engine
+	useCaseMock *CustomerUseCaseMock
+}
+
+func (suite *CustomerControllerTestSuite) SetupTest() {
+	suite.routerMock = gin.Default()
+	suite.useCaseMock = new(CustomerUseCaseMock)
+}
+
+func (c *CustomerUseCaseMock) RegisterCustomer(customer model.Customer) error {
+	args := c.Called(customer)
+	if args.Get(1) != nil {
+		return args.Get(0).(error)
+	}
+	return nil
+}
+
+func (c *CustomerUseCaseMock) FindCustomerById(id string) (model.Customer, error) {
+	args := c.Called(id)
+	if args.Get(1) != nil {
+		return model.Customer{}, args.Get(1).(error)
+	}
+	return
+}
+
+func (suite *CustomerControllerTestSuite) TestGetAllCustomerApi_Success() {
+	customers := []model.Customer{{
+		Id:      "C001",
+		Nama:    "Dummy Name 1",
+		Address: "Dummy Address 1",
+	}}
+	suite.useCaseMock.On("GetAllCustomer").Return(customers, nil)
+	NewCustomerController(suite.routerMock, suite.useCaseMock)
+	// ini baru kondisikan HTTP Status
+	r := httptest.NewRecorder()
+	// request test yang sesuai
+	request, err := http.NewRequest(http.MethodGet, "/customer", nil)
+	suite.routerMock.ServeHTTP(r, request)
+	var actualCustomers []model.Customer
+	response := r.Body.String()
+	json.Unmarshal([]byte(response), &actualCustomers)
+	assert.Equal(suite.T(), http.StatusOK, r.Code)
+	assert.Equal(suite.T(), 1, len(actualCustomers))
+	assert.Equal(suite.T(), customers[0].Nama, actualCustomers[0].Nama)
+	assert.Nil(suite.T(), err)
+}
+
+func (suite *CustomerControllerTestSuite) TestGetAllCustomerApi_Failed() {
+	suite.useCaseMock.On("GetAllCustomer").Return(nil, errors.New("failed"))
+	NewCustomerController(suite.routerMock, suite.useCaseMock)
+	// ini baru kondisikan HTTP status
+	r := httptest.NewRecorder()
+	// request test yang sesuai
+	request, _ := http.NewRequest(http.MethodGet, "/customer", nil)
+	suite.routerMock.ServeHTTP(r, request)
+	var errorResponse struct{ Err string }
+	response := r.Body.String()
+	json.Unmarshal([]byte(response), &errorResponse)
+	assert.Equal(suite.T(), http.StatusInternalServerError, r.Code)
+	assert.Equal(suite.T(), "failed", errorResponse.Err)
+}
+
+func TestCustomerControllerTestSuite(t *testing.T) {
+	suite.Run(t, new(CustomerControllerTestSuite))
+}
